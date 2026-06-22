@@ -3,6 +3,8 @@
 A concurrent HTTP status/latency checker — a single native binary, written in
 **[machin](https://github.com/javimosch/machin)** (MFL).
 
+Part of [**awesome-machin**](https://github.com/javimosch/awesome-machin) — the machin ecosystem.
+
 ```
 $ healthcheck http://example.com http://example.org http://httpforever.com http://bad.invalid
 [DOWN] unreachable          http://bad.invalid
