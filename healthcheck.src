@@ -1,0 +1,73 @@
+// healthcheck — concurrent HTTP status/latency checker, written in machin.
+// One goroutine per URL; results collected over a channel.
+
+func strip_scheme(u) (s) {
+    s = u
+    if has_prefix(u, "http://") { s = substr(u, 7, len(u)) }
+}
+
+func authority(u) (a) {
+    s := strip_scheme(u)
+    slash := index(s, "/")
+    if slash < 0 { a = s } else { a = substr(s, 0, slash) }
+}
+
+func host_of(u) (h) {
+    a := authority(u)
+    c := index(a, ":")
+    if c < 0 { h = a } else { h = substr(a, 0, c) }
+}
+
+func port_of(u) (p) {
+    a := authority(u)
+    c := index(a, ":")
+    if c < 0 { p = 80 } else { p = parse_int(substr(a, c + 1, len(a))) }
+}
+
+func path_of(u) (path) {
+    s := strip_scheme(u)
+    slash := index(s, "/")
+    if slash < 0 { path = "/" } else { path = substr(s, slash, len(s)) }
+}
+
+func status_of(resp) (code) {
+    code = "???"
+    sp := index(resp, " ")
+    if sp >= 0 {
+        rest := substr(resp, sp + 1, len(resp))
+        sp2 := index(rest, " ")
+        if sp2 >= 0 { code = substr(rest, 0, sp2) }
+    }
+}
+
+func check(u, ch) {
+    if has_prefix(u, "https://") { ch <- ("[skip] https/TLS not supported  " + u) return }
+    host := host_of(u)
+    port := port_of(u)
+    t0 := now_ms()
+    fd := dial(host, port)
+    if fd < 0 { ch <- ("[DOWN] unreachable          " + u) return }
+    write(fd, "GET " + path_of(u) + " HTTP/1.0\r\nHost: " + host + "\r\nConnection: close\r\n\r\n")
+    resp := read(fd)
+    close(fd)
+    ms := now_ms() - t0
+    ch <- ("[" + status_of(resp) + "]  " + str(ms) + "ms        " + u)
+}
+
+func usage() {
+    println("healthcheck - concurrent HTTP status/latency checker (machin)")
+    println("")
+    println("usage: healthcheck <url> [url ...]")
+    println("  http only; https/TLS not supported")
+}
+
+func main() {
+    a := args()
+    if len(a) < 2 { usage() return }
+    ch := make(chan string)
+    i := 1
+    while i < len(a) { go check(a[i], ch) i = i + 1 }
+    n := len(a) - 1
+    j := 0
+    while j < n { println(<-ch) j = j + 1 }
+}
